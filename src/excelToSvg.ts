@@ -240,13 +240,15 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
         row.eachCell((cell) => {
             if (cell.master !== cell) return;
             if (cell.isMerged) {
-                sheet.model.merges.find((merge) => {
-                    
+                const merge = sheet.model.merges.find((merge) => {
+                    const splitted = merge.split(":");
+                    return splitted[0] === cell.fullAddress.address;
                 });
+
                 top = row.number - 1;
-                bottom = sheet.model.merges[cell._address].model.bottom;
+                bottom = !merge ? top + 1: sheet.getCell(merge.split(":")[1]).fullAddress.row - 1;
                 left = cell.fullAddress.col - 1;
-                right = sheet._merges[cell._address].model.right;
+                right = !merge ? top + 1: sheet.getCell(merge.split(":")[1]).fullAddress.col - 1;;
             } else {
                 top = row.number - 1;
                 bottom = top + 1;
@@ -261,8 +263,8 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                 heights.slice(0, top).length == 0
                     ? 0
                     : heights.slice(0, top).reduce((a, b) => { return a + b }, 0);
-            height = heights.slice(top, bottom).reduce((a, b) => a + b);
-            width = widths.slice(left, right).reduce((a, b) => a + b);
+            height = heights.slice(top, bottom).reduce((a, b) => a + b, 0);
+            width = widths.slice(left, right).reduce((a, b) => a + b, 0);
             x = Math.round(x)
             y = Math.round(y)
             height = Math.round(height)
@@ -428,40 +430,42 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
         ({ reference, ...theRest }) => theRest
     );
     // for the images
-    sheet._media.forEach(media => {
-        if (media.type != 'image') return
-        const id = media.imageId
+    const images = sheet.getImages();
+    for (const image1 of images) {
+        const media = workbook.model.media.find((e: any) => e.index == +image1.imageId)
+        if (!media || media.type != 'image') continue;
+        
         let i = image.svg.defs.image.findIndex(
-            (x) => x.id == 'image' + id
+            (x) => x.id == 'image' + image1.imageId
         );
-        const imagePba = Buffer.from(res.media[id].buffer)
+        const imagePba = Buffer.from(media.buffer)
         if (i == -1) {
             i = image.svg.defs.image.push({
                 _attributes: {
-                    id: 'image' + id,
+                    id: 'image' + image1.imageId,
                     href: "data:image/png;base64, " + imagePba.toString('base64')
                 },
             }) - 1;
         }
         const dimensions = sizeOf(imagePba)
-        top = media.range.tl.nativeRow;
-        bottom = media.range.br.nativeRow;
-        left = media.range.tl.nativeCol;
-        right = media.range.br.nativeCol;
+        top = image1.range.tl.nativeRow;
+        bottom = image1.range.br.nativeRow;
+        left = image1.range.tl.nativeCol;
+        right = image1.range.br.nativeCol;
         x =
             (widths.slice(0, left).length == 0
                 ? 0
-                : widths.slice(0, left).reduce((a, b) => a + b)) + media.range.tl.nativeColOff * ratioX;
+                : widths.slice(0, left).reduce((a, b) => a + b)) + image1.range.tl.nativeColOff * ratioX;
         y =
             (heights.slice(0, top).length == 0
                 ? 0
-                : heights.slice(0, top).reduce((a, b) => a + b)) + media.range.tl.nativeRowOff * ratioY;
+                : heights.slice(0, top).reduce((a, b) => a + b)) + image1.range.tl.nativeRowOff * ratioY;
         height = (heights.slice(top, bottom).length == 0
             ? 0
-            : heights.slice(top, bottom).reduce((a, b) => a + b)) + media.range.br.nativeRowOff * ratioY - media.range.tl.nativeRowOff * ratioY;
+            : heights.slice(top, bottom).reduce((a, b) => a + b)) + image1.range.br.nativeRowOff * ratioY - image1.range.tl.nativeRowOff * ratioY;
         width = widths.slice(left, right).length == 0
             ? 0
-            : widths.slice(left, right).reduce((a, b) => a + b) + media.range.br.nativeColOff * ratioX - media.range.tl.nativeColOff * ratioX;
+            : widths.slice(left, right).reduce((a, b) => a + b) + image1.range.br.nativeColOff * ratioX - image1.range.tl.nativeColOff * ratioX;
         x = Math.round(x)
         y = Math.round(y)
         height = Math.round(height)
@@ -472,8 +476,9 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                 transform: `matrix(${width / dimensions.width} 0 0 ${height / dimensions.height} ${x} ${y})`
             }
         })
-    })
-    return js2xml(image.svg, { compact: true });
+
+    }
+    return js2xml(image, { compact: true });
 
 }
 
