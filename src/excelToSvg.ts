@@ -1,4 +1,4 @@
-import { Color, FillGradientAngle, FillGradientPath, FillPattern, Workbook, Worksheet } from "exceljs";
+import { CellErrorValue, CellFormulaValue, CellHyperlinkValue, CellRichTextValue, CellSharedFormulaValue, Color, FillGradientAngle, FillGradientPath, FillPattern, Workbook, Worksheet } from "exceljs";
 import { js2xml } from "xml-js";
 import sizeOf from "image-size";
 import sanitizeHtml from 'sanitize-html';
@@ -168,24 +168,24 @@ const ratioY = 10.71 * 7.45 / 762000.
 // <path d="M0 0L8 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
 // </pattern>
 // `
-
 export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
     const workbook = new Workbook();
     await workbook.xlsx.load(file)
-    let sheet: Worksheet =
+    const sheet: Worksheet =
         workbook.worksheets.find(sheet => sheet.name === worksheetName) ??
         workbook.worksheets.find(sheet => sheet.id === workbook.views?.[0]?.activeTab) ??
         workbook.worksheets[0]
 
     /* sheetIds for this file: 51, 71, 60, 50, 66, 67 */
     const heights: number[] = []
-    sheet.eachRow(row => {
+    for (let i = 1; i <= sheet.rowCount; i++) {
+        const row = sheet.getRow(i)
         heights.push(row.height || 15);
-    })
+    }
     let widths: number[] = []
-    sheet.eachColumnKey((column) => {
+    for (const column of sheet.columns) {
         widths.push((column.width || 10.71) * 7.45);
-    })
+    }
     if (widths.length === 0) widths = [10.71]
     const image: {
         svg: {
@@ -228,7 +228,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
     let bottom: number;
     let left: number;
     let right: number;
-    let color: string = "";
+    let color: string | null = "";
     let x: number;
     let y: number;
     let height: number;
@@ -236,9 +236,15 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
     let totWidth: number = 0
     let totHeight: number = 0
     const defaultPadding = 3;
-    sheet.eachRow((row) => {
-        row.eachCell((cell) => {
-            if (cell.master !== cell) return;
+
+    for (let i = 1; i <= sheet.rowCount; i++) {
+        const row = sheet.getRow(i);
+        for (let j = 1; j <= row.cellCount; j++) {
+            const cell = row.getCell(j)
+            if (cell.value !== undefined && cell.master !== cell) {
+                //   appendFileSync('nuevo.txt', cell.address + '\n')
+                continue
+            };
             if (cell.isMerged) {
                 const merge = sheet.model.merges.find((merge) => {
                     const splitted = merge.split(":");
@@ -246,9 +252,10 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                 });
 
                 top = row.number - 1;
-                bottom = !merge ? top + 1: sheet.getCell(merge.split(":")[1]).fullAddress.row - 1;
+                bottom = !merge ? top + 1 : sheet.getCell(merge.split(":")[1]).fullAddress.row;
                 left = cell.fullAddress.col - 1;
-                right = !merge ? top + 1: sheet.getCell(merge.split(":")[1]).fullAddress.col - 1;;
+                right = !merge ? top + 1 : sheet.getCell(merge.split(":")[1]).fullAddress.col;
+
             } else {
                 top = row.number - 1;
                 bottom = top + 1;
@@ -272,10 +279,12 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
             if (x + width > totWidth) totWidth = x + width
             if (y + height > totHeight) totHeight = y + height
             // For the filling
-            if (cell.fill.type == "pattern") {
-                color = getColor((cell.style.fill as FillPattern).fgColor);
-            } else if (cell.style?.fill?.type == "gradient") {
-                if (cell.style.fill.gradient == "angle" || cell.style.fill.gradient == null) {
+            if (cell.fill?.type === "pattern") {
+                const filling = cell.style.fill as FillPattern
+                filling.pattern
+                color = getColor(filling.fgColor);
+            } else if (cell.style?.fill?.type === "gradient") {
+                if (cell.style.fill.gradient === "angle" || cell.style.fill.gradient == null) {
                     const filling = cell.style.fill as FillGradientAngle;
                     let i = image.svg.defs.linearGradient.findIndex(
                         (x) => x.reference == cell.style.fill
@@ -331,7 +340,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                     color = "#FFFFFF";
                 }
             } else {
-                color =  "#FFFFFF";
+                color = "#FFFFFF";
             }
             if (color) {
                 image.svg.rect.push({
@@ -359,7 +368,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                                 d: '',
                                 stroke: color,
                                 fill: 'none',
-                                ... value.style && {...borderStyles[value.style]}
+                                ...value.style && { ...borderStyles[value.style] }
                             },
                         }) - 1;
                     }
@@ -382,10 +391,24 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                 });
             }
             // For the text
-            let value =
-                (cell.value??cell.result)?.toString()??"";
+            let value = ""
+            if ((cell.value as CellErrorValue)?.error) {
+                value = (cell.value as CellErrorValue).error
+            } else if ((cell.value as CellFormulaValue)?.formula || (cell.value as CellSharedFormulaValue)?.sharedFormula) {
+                if (((cell.value as CellFormulaValue).result as CellErrorValue)?.error) {
+                    value = ((cell.value as CellFormulaValue).result as CellErrorValue).error
+                } else {
+                    value = cell.result?.toString()??""
+                }
+            } else if ((cell.value as CellRichTextValue)?.richText) {
+                value = (cell.value as CellRichTextValue).richText.map(e => e.text).join('')
+            } else if ((cell.value as CellHyperlinkValue)?.text) {
+                value = (cell.value as CellHyperlinkValue).text
+            } else {
+                value = cell.value?.toString()??""
+            }
             if (value != null) {
-                const text: { _attributes: { x: number; y: number; "font-size"?: number | string; "text-anchor"?: string; "dominant-baseline"?: string; "font-weight"?: string; fill?: string }; _text: string; }  = {
+                const text: { _attributes: { x: number; y: number; "font-size"?: number | string; "text-anchor"?: string; "dominant-baseline"?: string; "font-weight"?: string; fill?: string }; _text: string; } = {
                     _attributes: {
                         x: Math.round(x + defaultPadding),
                         y: Math.round(y + height - defaultPadding),
@@ -394,7 +417,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                     _text: sanitizeHtml(value),
                 };
                 let color = getColor(cell.style?.font?.color)
-                if (color != null || color != '#000000') text._attributes['fill'] = color
+                text._attributes['fill'] = color ?? '#000000'
                 if (cell.style?.alignment) {
                     switch (cell.style?.alignment.horizontal) {
                         case "right":
@@ -421,8 +444,8 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                     text._attributes["font-weight"] = "bold";
                 image.svg.text.push(text);
             }
-        });
-    });
+        };
+    };
     image.svg.defs.linearGradient = image.svg.defs.linearGradient.map(
         ({ reference, ...theRest }) => theRest
     );
@@ -434,7 +457,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
     for (const image1 of images) {
         const media = workbook.model.media.find((e: any) => e.index == +image1.imageId)
         if (!media || media.type != 'image') continue;
-        
+
         let i = image.svg.defs.image.findIndex(
             (x) => x.id == 'image' + image1.imageId
         );
@@ -482,17 +505,19 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
 
 }
 
-function getColor(color?: Partial<Color>): string {
+function getColor(color?: Partial<Color & { tint: number }>): string | null {
     if (color?.argb) {
         return "#" + color.argb.slice(2, 8);
     } else if (color?.theme != null) {
         const theme = { ...themes[color.theme] };
-        // const tint = color.tint;
-        // const changedColor = CalculateFinalLumValue(tint, theme.l);
-        // theme.l = changedColor;
+        const tint = color.tint;
+        if (tint) {
+            const changedColor = CalculateFinalLumValue(tint, theme.l);
+            theme.l = changedColor;
+        }
         return hslToHex(theme);
     } else {
-        return "#FFFFFF";
+        return null;
     }
 }
 
