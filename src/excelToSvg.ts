@@ -2,20 +2,7 @@ import { CellErrorValue, CellFormulaValue, CellHyperlinkValue, CellRichTextValue
 import { js2xml } from "xml-js";
 import sizeOf from "image-size";
 import sanitizeHtml from 'sanitize-html';
-
-
-const themes = [
-    { h: 0, s: 0, l: 100 },
-    { h: 0, s: 0, l: 0 },
-    { h: 51, s: 28, l: 91 },
-    { h: 231, s: 60, l: 31 },
-    { h: 213, s: 45, l: 53 },
-    { h: 2, s: 48, l: 53 },
-    { h: 80, s: 42, l: 54 },
-    { h: 267, s: 25, l: 51 },
-    { h: 193, s: 52, l: 54 },
-    { h: 27, s: 92, l: 62 },
-];
+import { getThemeColors } from "./theme parser";
 
 const borderStyles = {
     "medium": {
@@ -170,6 +157,21 @@ const ratioY = 10.71 * 7.45 / 762000.
 // `
 export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
     const workbook = new Workbook();
+    const themes = await getThemeColors(file)
+    const getColor = (color?: Partial<Color & { tint: number }>): string | null => {
+    if (color?.argb) {
+        return "#" + color.argb.slice(2, 8);
+    } else if (color?.theme != null) {
+        let theme = themes[color.theme];
+        const tint = color.tint;
+        if (tint) {
+            theme = CalculateFinalLumValue(tint, theme);
+        }
+        return "#" + theme;
+    } else {
+        return null;
+    }
+}
     await workbook.xlsx.load(file)
     const sheet: Worksheet =
         workbook.worksheets.find(sheet => sheet.name === worksheetName) ??
@@ -281,7 +283,6 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
             // For the filling
             if (cell.fill?.type === "pattern") {
                 const filling = cell.style.fill as FillPattern
-                filling.pattern
                 color = getColor(filling.fgColor);
             } else if (cell.style?.fill?.type === "gradient") {
                 if (cell.style.fill.gradient === "angle" || cell.style.fill.gradient == null) {
@@ -505,59 +506,17 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
 
 }
 
-function getColor(color?: Partial<Color & { tint: number }>): string | null {
-    if (color?.argb) {
-        return "#" + color.argb.slice(2, 8);
-    } else if (color?.theme != null) {
-        const theme = { ...themes[color.theme] };
-        const tint = color.tint;
-        if (tint) {
-            const changedColor = CalculateFinalLumValue(tint, theme.l);
-            theme.l = changedColor;
+function CalculateFinalLumValue(tint: number, color: string): string {
+    let [r, g, b] = [parseInt(color.slice(0,2), 16), parseInt(color.slice(2,4), 16), parseInt(color.slice(4), 16)];
+    [r, g, b] = [r, g, b].map(el => {
+        if (tint > 0) {
+            el += (255 - el) * tint
+        } else {
+            el *= (1 + tint)
         }
-        return hslToHex(theme);
-    } else {
-        return null;
-    }
-}
-
-function hslToHex(hsl: { h: number; s: number; l: number }) {
-    hsl = hsl;
-    let h = hsl.h;
-    let s = hsl.s;
-    let l = hsl.l;
-    h /= 360;
-    s /= 100;
-    l /= 100;
-    let r, g, b;
-    if (s === 0) {
-        r = g = b = l;
-    } else {
-        const hue2rgb = function (p: number, q: number, t: number) {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1 / 6) return p + (q - p) * 6 * t;
-            if (t < 1 / 2) return q;
-            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-            return p;
-        };
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        const p = 2 * l - q;
-        r = hue2rgb(p, q, h + 1 / 3);
-        g = hue2rgb(p, q, h);
-        b = hue2rgb(p, q, h - 1 / 3);
-    }
-    const toHex = function (x: number) {
-        const hex = Math.round(x * 255).toString(16);
-        return hex.length === 1 ? "0" + hex : hex;
-    };
-    return "#" + toHex(r) + toHex(g) + toHex(b);
-}
-
-function CalculateFinalLumValue(tint: number, lum: number) {
-    if (tint == null) return lum;
-    if (lum == 0) return lum + tint * 100;
-    return (lum * (1.0 + tint) * 240) / 255;
+        return Math.round(el)
+    })
+    return [r, g, b].map(e => e.toString(16)).join('')
 }
 
 function getCoords(angle: number) {
