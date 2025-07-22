@@ -1,8 +1,77 @@
-import { CellErrorValue, CellFormulaValue, CellHyperlinkValue, CellRichTextValue, CellSharedFormulaValue, Color, FillGradientAngle, FillGradientPath, FillPattern, Workbook, Worksheet } from "exceljs";
+import { CellErrorValue, CellFormulaValue, CellHyperlinkValue, CellRichTextValue, CellSharedFormulaValue, Color, FillGradientAngle, FillGradientPath, FillPattern, FillPatterns, Workbook, Worksheet } from "exceljs";
 import { js2xml } from "xml-js";
 import sizeOf from "image-size";
 import sanitizeHtml from 'sanitize-html';
 import { getThemeColors } from "./theme parser";
+
+const DEFAULT_INDEXED_COLORS: string[] = [
+"000000",
+"FFFFFF",
+"FF0000",
+"00FF00",
+"0000FF",
+"FFFF00",
+"FF00FF",
+"00FFFF",
+"000000",
+"FFFFFF",
+"FF0000",
+"00FF00",
+"0000FF",
+"FFFF00",
+"FF00FF",
+"00FFFF",
+"800000",
+"008000",
+"000080",
+"808000",
+"800080",
+"008080",
+"C0C0C0",
+"808080",
+"9999FF",
+"993366",
+"FFFFCC",
+"CCFFFF",
+"660066",
+"FF8080",
+"0066CC",
+"CCCCFF",
+"000080",
+"FF00FF",
+"FFFF00",
+"00FFFF",
+"800080",
+"800000",
+"008080",
+"0000FF",
+"00CCFF",
+"CCFFFF",
+"CCFFCC",
+"FFFF99",
+"99CCFF",
+"FF99CC",
+"CC99FF",
+"FFCC99",
+"3366FF",
+"33CCCC",
+"99CC00",
+"FFCC00",
+"FF9900",
+"FF6600",
+"666699",
+"969696",
+"003366",
+"339966",
+"003300",
+"333300",
+"993300",
+"993366",
+"333399",
+"333333",
+"000000",
+"FFFFFF",
+];
 
 const borderStyles = {
     "medium": {
@@ -52,133 +121,230 @@ const ratioX = 15. / 190500.
 const ratioY = 10.71 * 7.45 / 762000.
 
 // Patterns
-// `darkGray        <pattern id="Pattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="4" height="4" fill="black"/>
-// <circle cx="0" cy="0" r="0.5" fill="white"/>
-// <circle cx="0" cy="4" r="0.5" fill="white"/>
-// <circle cx="2" cy="2" r="0.5" fill="white"/>
-// <circle cx="4" cy="0" r="0.5" fill="white"/>
-// <circle cx="4" cy="4" r="0.5" fill="white"/>
-// </pattern>
-// mediumGray  <pattern id="Pattern" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="4" height="4" fill="black"/>
-// <circle cx="0" cy="0" r="0.5" fill="white"/>
-// <circle cx="0" cy="4" r="0.5" fill="white"/>
-// <circle cx="2" cy="2" r="0.5" fill="white"/>
-// <circle cx="4" cy="0" r="0.5" fill="white"/>
-// <circle cx="4" cy="4" r="0.5" fill="white"/>
-// </pattern>
-// lightGray   <pattern id="Pattern" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse">
-//   <rect x="0" y="0" width="6" height="6" fill="black"/>
-//   <circle cx="0" cy="0" r="1" fill="white"/>
-//   <circle cx="0" cy="6" r="1" fill="white"/>
-//   <circle cx="3" cy="3" r="1" fill="white"/>
-//   <circle cx="6" cy="0" r="1" fill="white"/>
-//   <circle cx="6" cy="6" r="1" fill="white"/>
-// </pattern>
-// gray125 <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-//   <rect x="0" y="0" width="8" height="8" fill="black"/>
-//   <circle cx="0" cy="0" r="1" fill="white"/>
-//   <circle cx="0" cy="8" r="1" fill="white"/>
-//   <circle cx="4" cy="4" r="1" fill="white"/>
-//   <circle cx="8" cy="0" r="1" fill="white"/>
-//   <circle cx="8" cy="8" r="1" fill="white"/>
-// </pattern>
-// gray0625    
-// <pattern id="Pattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-//   <rect x="0" y="0" width="10" height="10" fill="black"/>
-//   <circle cx="0" cy="0" r="1" fill="white"/>
-//   <circle cx="0" cy="10" r="1" fill="white"/>
-//   <circle cx="5" cy="5" r="1" fill="white"/>
-//   <circle cx="10" cy="0" r="1" fill="white"/>
-//   <circle cx="10" cy="10" r="1" fill="white"/>
-// </pattern>
-// </defs>
-// darkHorizontal  <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-//   <rect x="0" y="0" width="8" height="4" fill="black"/>
-//   <rect x="0" y="4" width="8" height="4" fill="white"/>
-// </pattern>
-// darkVertical    <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="4" height="8" fill="black"/>
-// <rect x="4" y="0" width="4" height="8" fill="white"/>
-// </pattern>
-// darkDown    <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-//   <rect x="0" y="0" width="8" height="8" fill="black"/>
-//   <path d="M0 0L8 8" fill="" stroke="white" stroke-width="2" stroke-linecap="square"/>
-//   <path d="M8 0L16 8" fill="" stroke="white" stroke-width="2" stroke-linecap="square"/>
-//   <path d="M0 8L8 16" fill="" stroke="white" stroke-width="2" stroke-linecap="square"/>
-// </pattern>
-// darkUp  <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="8" fill="black"/>
-// <path d="M8 0L0 8" fill="" stroke="white" stroke-width="2" stroke-linecap="square"/>
-// <path d="M8 8L0 16" fill="" stroke="white" stroke-width="2" stroke-linecap="square"/>
-// <path d="M0 0L-8 8" fill="" stroke="white" stroke-width="2" stroke-linecap="square"/>
-// </pattern>
-// darkGrid    <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="8" fill="black"/>
-// <path d="M4 0L4 8" fill="" stroke="white" stroke-width="3" stroke-linecap="square"/>
-// <path d="M0 4L8 4" fill="" stroke="white" stroke-width="3" stroke-linecap="square"/>
-// </pattern>
-// darkTrellis <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="8" fill="black"/>
-// <path d="M8 0L0 8" fill="" stroke="white" stroke-width="3" stroke-linecap="square"/>
-// <path d="M0 0L8 8" fill="" stroke="white" stroke-width="3" stroke-linecap="square"/>
-// </pattern>
-// lightHorizontal <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="7" fill="white"/>
-// <rect x="0" y="7" width="8" height="1" fill="black"/>
-// </pattern>
-// lightVertical   <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="7" height="8" fill="white"/>
-// <rect x="7" y="0" width="1" height="8" fill="black"/>
-// </pattern>
-// lightDown   <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="8" fill="white"/>
-// <path d="M0 0L8 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// <path d="M8 0L16 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// <path d="M0 8L8 16" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// </pattern>
-// lightUp <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="8" fill="white"/>
-// <path d="M8 0L0 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// <path d="M8 8L0 16" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// <path d="M0 0L-8 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// </pattern>
-// lightGrid   <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="8" fill="white"/>
-// <path d="M4 0L4 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// <path d="M0 4L8 4" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// </pattern>
-// lightTrellis    <pattern id="Pattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
-// <rect x="0" y="0" width="8" height="8" fill="white"/>
-// <path d="M8 0L0 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// <path d="M0 0L8 8" fill="" stroke="black" stroke-width="1" stroke-linecap="square"/>
-// </pattern>
-// `
+type Pattern = {
+    [K in FillPatterns]: (fg: string, bg: string, id: string) => any
+}
+const patterns: Pattern = {
+    darkGray: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 4, height: 4, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 4, height: 4, fill: fg } }],
+            circle: [
+                { _attributes: { cx: 0, cy: 0, r: 0.5, fill: bg } },
+                { _attributes: { cx: 0, cy: 4, r: 0.5, fill: bg } },
+                { _attributes: { cx: 2, cy: 2, r: 0.5, fill: bg } },
+                { _attributes: { cx: 4, cy: 0, r: 0.5, fill: bg } },
+                { _attributes: { cx: 4, cy: 4, r: 0.5, fill: bg } }
+            ]
+        }
+    }),
+    mediumGray: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 4, height: 4, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 4, height: 4, fill: fg } }],
+            circle: [
+                { _attributes: { cx: 0, cy: 0, r: 0.5, fill: bg } },
+                { _attributes: { cx: 0, cy: 4, r: 0.5, fill: bg } },
+                { _attributes: { cx: 2, cy: 2, r: 0.5, fill: bg } },
+                { _attributes: { cx: 4, cy: 0, r: 0.5, fill: bg } },
+                { _attributes: { cx: 4, cy: 4, r: 0.5, fill: bg } }
+            ]
+        }
+    }),
+    lightGray: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 6, height: 6, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 6, height: 6, fill: fg } }],
+            circle: [
+                { _attributes: { cx: 0, cy: 0, r: 1, fill: bg } },
+                { _attributes: { cx: 0, cy: 6, r: 1, fill: bg } },
+                { _attributes: { cx: 3, cy: 3, r: 1, fill: bg } },
+                { _attributes: { cx: 6, cy: 0, r: 1, fill: bg } },
+                { _attributes: { cx: 6, cy: 6, r: 1, fill: bg } }
+            ]
+        }
+    }),
+    gray125: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: fg } }],
+            circle: [
+                { _attributes: { cx: 0, cy: 0, r: 1, fill: bg } },
+                { _attributes: { cx: 0, cy: 8, r: 1, fill: bg } },
+                { _attributes: { cx: 4, cy: 4, r: 1, fill: bg } },
+                { _attributes: { cx: 8, cy: 0, r: 1, fill: bg } },
+                { _attributes: { cx: 8, cy: 8, r: 1, fill: bg } }
+            ]
+        }
+    }),
+    gray0625: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 10, height: 10, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 10, height: 10, fill: fg } }],
+            circle: [
+                { _attributes: { cx: 0, cy: 0, r: 1, fill: bg } },
+                { _attributes: { cx: 0, cy: 10, r: 1, fill: bg } },
+                { _attributes: { cx: 5, cy: 5, r: 1, fill: bg } },
+                { _attributes: { cx: 10, cy: 0, r: 1, fill: bg } },
+                { _attributes: { cx: 10, cy: 10, r: 1, fill: bg } }
+            ]
+        }
+    }),
+    darkHorizontal: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [
+                { _attributes: { x: 0, y: 0, width: 8, height: 4, fill: fg } },
+                { _attributes: { x: 0, y: 4, width: 8, height: 4, fill: bg } }
+            ]
+        }
+    }),
+    darkVertical: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [
+                { _attributes: { x: 0, y: 0, width: 4, height: 8, fill: fg } },
+                { _attributes: { x: 4, y: 0, width: 4, height: 8, fill: bg } }
+            ]
+        }
+    }),
+    darkDown: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: fg } }],
+            path: [
+                { _attributes: { d: "M0 0L8 8", fill: "", stroke: bg, "stroke-width": 2, "stroke-linecap": "square" } },
+                { _attributes: { d: "M8 0L16 8", fill: "", stroke: bg, "stroke-width": 2, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 8L8 16", fill: "", stroke: bg, "stroke-width": 2, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    darkUp: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: fg } }],
+            path: [
+                { _attributes: { d: "M8 0L0 8", fill: "", stroke: bg, "stroke-width": 2, "stroke-linecap": "square" } },
+                { _attributes: { d: "M8 8L0 16", fill: "", stroke: bg, "stroke-width": 2, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 0L-8 8", fill: "", stroke: bg, "stroke-width": 2, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    darkGrid: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: fg } }],
+            path: [
+                { _attributes: { d: "M4 0L4 8", fill: "", stroke: bg, "stroke-width": 3, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 4L8 4", fill: "", stroke: bg, "stroke-width": 3, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    darkTrellis: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: fg } }],
+            path: [
+                { _attributes: { d: "M8 0L0 8", fill: "", stroke: bg, "stroke-width": 3, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 0L8 8", fill: "", stroke: bg, "stroke-width": 3, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    lightHorizontal: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [
+                { _attributes: { x: 0, y: 0, width: 8, height: 7, fill: bg } },
+                { _attributes: { x: 0, y: 7, width: 8, height: 1, fill: fg } }
+            ]
+        }
+    }),
+    lightVertical: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [
+                { _attributes: { x: 0, y: 0, width: 7, height: 8, fill: bg } },
+                { _attributes: { x: 7, y: 0, width: 1, height: 8, fill: fg } }
+            ]
+        }
+    }),
+    lightDown: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: bg } }],
+            path: [
+                { _attributes: { d: "M0 0L8 8", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } },
+                { _attributes: { d: "M8 0L16 8", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 8L8 16", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    lightUp: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: bg } }],
+            path: [
+                { _attributes: { d: "M8 0L0 8", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } },
+                { _attributes: { d: "M8 8L0 16", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 0L-8 8", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    lightGrid: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: bg } }],
+            path: [
+                { _attributes: { d: "M4 0L4 8", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 4L8 4", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    lightTrellis: (fg: string, bg: string, id: string) => ({
+        pattern: {
+            _attributes: { id, x: 0, y: 0, width: 8, height: 8, patternUnits: "userSpaceOnUse" },
+            rect: [{ _attributes: { x: 0, y: 0, width: 8, height: 8, fill: bg } }],
+            path: [
+                { _attributes: { d: "M8 0L0 8", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } },
+                { _attributes: { d: "M0 0L8 8", fill: "", stroke: fg, "stroke-width": 1, "stroke-linecap": "square" } }
+            ]
+        }
+    }),
+    none: function (fg: string, bg: string, id: string) {
+        throw new Error("Function not implemented.");
+    },
+    solid: function (fg: string, bg: string, id: string) {
+        throw new Error("Function not implemented.");
+    }
+};
 export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
     const workbook = new Workbook();
     const themes = await getThemeColors(file)
+    const indexedColors: string[] = DEFAULT_INDEXED_COLORS
     const getColor = (color?: Partial<Color & { tint: number }>): string | null => {
-    if (color?.argb) {
-        return "#" + color.argb.slice(2, 8);
-    } else if (color?.theme != null) {
-        let theme = themes[color.theme];
-        const tint = color.tint;
-        if (tint) {
-            theme = CalculateFinalLumValue(tint, theme);
+        if (color?.argb) {
+            return "#" + color.argb.slice(2, 8);
+        } else if (color?.theme != null) {
+            let theme = themes[color.theme];
+            const tint = color.tint;
+            if (tint) {
+                theme = CalculateFinalLumValue(tint, theme);
+            }
+            return "#" + theme;
+        } else if ((color as any)?.indexed) {
+            if (indexedColors[(color as any).indexed]) {
+                return "#" + indexedColors[(color as any).indexed]
+            } else return null
+        } else {
+            return null;
         }
-        return "#" + theme;
-    } else {
-        return null;
     }
-}
     await workbook.xlsx.load(file)
     const sheet: Worksheet =
         workbook.worksheets.find(sheet => sheet.name === worksheetName) ??
         workbook.worksheets.find(sheet => sheet.id === workbook.views?.[0]?.activeTab) ??
         workbook.worksheets[0]
 
-    /* sheetIds for this file: 51, 71, 60, 50, 66, 67 */
     const heights: number[] = []
     for (let i = 1; i <= sheet.rowCount; i++) {
         const row = sheet.getRow(i)
@@ -201,6 +367,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                 linearGradient: any[];
                 radialGradient: any[];
                 image: any[];
+                pattern: any[];
             };
             rect: any[];
             path: any[];
@@ -218,6 +385,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
             defs: {
                 linearGradient: [],
                 radialGradient: [],
+                pattern: [],
                 image: []
             },
             rect: [],
@@ -283,7 +451,19 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
             // For the filling
             if (cell.fill?.type === "pattern") {
                 const filling = cell.style.fill as FillPattern
-                color = getColor(filling.fgColor);
+                let i = image.svg.defs.pattern.findIndex(
+                    (x) => x.reference == cell.style.fill
+                );
+                if (!["none", "solid"].includes(filling.pattern)) {
+                    if (i == -1) {
+                        image.svg.defs.pattern.push(patterns[filling.pattern](getColor(filling.bgColor)??"", getColor(filling.fgColor)??"", "pattern" + cell.address));
+                        color = `url(#pattern${cell.address})`;
+                    } else {
+                        color = `url(#${image.svg.defs.pattern[i]._attributes.id})`;
+                    }
+                } else {
+                    color = getColor(filling.fgColor);
+                }
             } else if (cell.style?.fill?.type === "gradient") {
                 if (cell.style.fill.gradient === "angle" || cell.style.fill.gradient == null) {
                     const filling = cell.style.fill as FillGradientAngle;
@@ -399,14 +579,14 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
                 if (((cell.value as CellFormulaValue).result as CellErrorValue)?.error) {
                     value = ((cell.value as CellFormulaValue).result as CellErrorValue).error
                 } else {
-                    value = cell.result?.toString()??""
+                    value = cell.result?.toString() ?? ""
                 }
             } else if ((cell.value as CellRichTextValue)?.richText) {
                 value = (cell.value as CellRichTextValue).richText.map(e => e.text).join('')
             } else if ((cell.value as CellHyperlinkValue)?.text) {
                 value = (cell.value as CellHyperlinkValue).text
             } else {
-                value = cell.value?.toString()??""
+                value = cell.value?.toString() ?? ""
             }
             if (value != null) {
                 const text: { _attributes: { x: number; y: number; "font-size"?: number | string; "text-anchor"?: string; "dominant-baseline"?: string; "font-weight"?: string; fill?: string }; _text: string; } = {
@@ -507,7 +687,7 @@ export const excel2Svg = async (file: Buffer, worksheetName?: string) => {
 }
 
 function CalculateFinalLumValue(tint: number, color: string): string {
-    let [r, g, b] = [parseInt(color.slice(0,2), 16), parseInt(color.slice(2,4), 16), parseInt(color.slice(4), 16)];
+    let [r, g, b] = [parseInt(color.slice(0, 2), 16), parseInt(color.slice(2, 4), 16), parseInt(color.slice(4), 16)];
     [r, g, b] = [r, g, b].map(el => {
         if (tint > 0) {
             el += (255 - el) * tint
@@ -519,26 +699,17 @@ function CalculateFinalLumValue(tint: number, color: string): string {
     return [r, g, b].map(e => e.toString(16)).join('')
 }
 
-function getCoords(angle: number) {
-    if (angle == null) angle = 0;
-    angle = (angle * 2 * Math.PI) / 360.0;
-    const coords = { x1: 0.5, y1: 0.5, x2: 0, y2: 0 };
-    const cuarto = Math.PI / 4;
-    if (angle >= cuarto && angle < 3 * cuarto) {
-        coords.y2 = 1;
-        coords.x2 = (coords.y2 - coords.y1) / Math.tan(angle) + coords.x1;
-    } else if (angle >= 3 * cuarto && angle < 5 * cuarto) {
-        coords.x2 = 0;
-        coords.y2 = (coords.x2 - coords.x1) / Math.tan(angle) + coords.y1;
-    } else if (angle >= 5 * cuarto && angle < 7 * cuarto) {
-        coords.y2 = 0;
-        coords.x2 = (coords.y2 - coords.y1) / Math.tan(angle) + coords.x1;
-    } else {
-        coords.x2 = 1;
-        coords.y2 = (coords.x2 - coords.x1) / Math.tan(angle) + coords.y1;
-    }
-    coords.y1 = 1 - coords.y2;
-    coords.x1 = 1 - coords.x2;
-    if (angle == 0) coords.y1 = 0, coords.y2 = 0
-    return coords;
+function getCoords(angleDeg: number) {
+    if (angleDeg == null) angleDeg = 0;
+
+    const angleRad = angleDeg % 360 * Math.PI / 180;
+    const dx = Math.cos(angleRad) * 0.5;
+    const dy = Math.sin(angleRad) * 0.5;
+
+    return {
+        x1: +(0.5 - dx).toFixed(4),
+        y1: +(0.5 - dy).toFixed(4),
+        x2: +(0.5 + dx).toFixed(4),
+        y2: +(0.5 + dy).toFixed(4),
+    };
 }
